@@ -1,0 +1,167 @@
+Major parts
+A Message broker with single queue and atleast once guarantee.
+
+1. Thread safe queues
+    ShreniQueue implements IShreniQueue, that is safe for queueing messages and dequeuing
+        1. ConcurrentQueue<Queueitem> mainQueue // this is drained by QueueDrainer
+        2. ConcurrentHashSet<messageId> ackedMessages // this contains messages which are acked but not removed from the inflight queue
+        3. ConcurrentQueue<Queueitem> inFlightQueue //parked here if sent but not acked. Will be requeued if not acked with in {x} seconds.
+            when message is dequeued,
+                it's added to inFlightQueue
+                When a message is acked it's id is stored in ackedmessages set
+                We have a MessageRedeliveryManager that wakes up every minute and checks first message i.e oldest and check
+
+                if it's acked
+                    if yes,
+                        atomic{we remove it from inflight queue and ackedMessage queue}
+                else
+                    did we hit ackTimeout for this message
+                        if yes we see if it can be redelivered
+                            if yes, we requeue it to main queue
+                        else, we add it to dead letter queue
+                    else
+                        this is oldest inflight message and we didn't hit acktimeout, so there is no need check other messages for ack timeout in the queue
+                        let's break for now and recheck things in next cycle.
+
+        4. ConcurrentSet<Subscriber> subscribersList;
+        5. ConcurrentQueue<QueueItem> deadQueue;
+
+        IShreniQueue
+            void EnqueueMessage(Message message, int currentAttempt = 0);
+            Message DequeueMessage();
+            void AckMessage(int messageId);
+            void AddSubscriber(Subscriber sub);
+            void RemoveSubscriber(uuid subId);
+
+    Queueitem
+        id
+        topicId
+        createdAt
+        maxRetryCount
+        retryCountSoFar = 0
+        ttl
+        byte[] payload
+
+        bool IsItemStillValid();
+
+    QueueDrainer
+        A background thread, that is keep running and trying drain the messages. It will send messages from queue to one of subscribers(if we sent to all subscribers, then we have to wait
+        to get ack from all subscribers and deal with partial delivers, could get messy)
+        IShreniQueue
+        IMessageDispatcher
+            SendMessage(subscriber, message);
+
+        startQueueDrainer();
+
+    MessageRedeliveryManager
+        A background thread, that waked every {x} milliseconds and checks inflight queue and remove or requeue messages as needed
+        MonitorMessages(IShreniQ queue){}
+
+    class Channel {
+        int channelId;
+        ChannelRole role;
+    }
+
+    class Subscriber {
+        String subscriberId;
+        Channel channel;
+        String queueName;
+        int prefetchCount;
+    }
+
+2. Protocol
+
+     class Client {
+            String clientId;
+            List<Connection> connections;
+        }
+
+        class Connection {
+            long connectionId;
+            Map<Integer, Channel> channels;
+        }
+
+    MessageDispatcher implements IMessageDispatcher
+        Map<subId, SubscriberChannelHandler> subHandlerMap;
+        void addSubscriber(SubscriberChannelHandler handler)
+        void removeSubscriber(SubscriberChannelHandler handler)
+        void sendMessage(subscriber sub, Message message);
+            find connection handler and send message via that handler
+
+    Connection Handler, for auth and creates channels, for both subscribers and publishers
+        AuthFrameParser -> parses,decodes auth message, encodes, parses auth response message
+        Authenticator -> authenticates connection
+        StateMachine.
+            States: Start(default)->wait for tls handshake -> TLS handshake -> wait for auth -> Authenicated -> {send/receive} -> Close
+            States: Start(default)->wait for tls handshake -> TLS handshake -> wait for auth -> Authenication failed -> Closed
+            States: Start(default)->wait for tls handshake -> TLS handshake failed -> Closed
+        1. Map<ChannelId, PublisherChannelHandler>
+        2. Map<ChannelId, SubscriberChannelHandler>
+        creates, publisherchannelHandler or SubscriberChannelHandler
+        IShreniQ
+            void AddSubscriber(Subscriber sub);
+        IMessageDispatcher
+            void addConnection(this);
+        add/remove subscribers to the queue.
+        Will handle malformed frame exception or eof exception and try to close connection gracefully.
+        IShreniQ
+            void RemoveSubscriber(uuid subId);
+        IMessageDispatcher
+            void removeSubscriber(this);
+
+    PublisherChannelHandler, creates and adds message to queue
+        PublisherMessageParser -> parses,decodes PublisherContentFrame, encodes, parses PublisherContentAckFrame
+        IShreniQ
+            EnqueueMessage(Message message, int currentAttempt = 0);
+        Create a queue item, adds it to the queue.
+        Send an ack back.
+        At any point if received a malformed packet, will throw malformed frame exception
+        At any point while expecting bytes, eof is reached eof exception will be thrown
+
+    SubscriberChannelHandler, cotnains statemachine, send message to client via connection handler
+        SubscriberMessageParser -> encodes and writes SubscriberContentFrame and reads and decodes SubscriberContentAckFrame
+        writes message to outputStream
+        void sendMessage(Message message)
+        waits for ack
+        IShreniQ
+            void AckMessage(int messageId);
+        Once got ack, removes the message from queue.
+        At any point if received a malformed packet, will throw malformed frame exception
+        At any point while expecting bytes, eof is reached eof exception will be thrown
+
+    AuthFrame //connection level
+    AuthResponseFrame //connection level
+    PublisherContentFrame //channel level
+    PublisherContentAckFrame //channel level
+    SubscriberContentFrame //channel level
+    SubscriberContentAckFrame //channel level
+
+AuthFrame
+1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+2 bytes:  username length;
+N bytes: username; utf-8 string
+2 bytes: password length;
+N bytes: password; utf-8 string;
+1 byte: publisher/subscriber
+16 bytes: clientId; uuid
+16 bytes: subId/pubId; uuid
+1 byte eof marker
+
+AuthResponseFrame:
+1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+1 byte: Response code; {AuthSuccessful, AuthFailed, clientIdNotAllowed}
+1 byte eof marker
+
+
+ Settings
+    Port
+    PublisherCredentials
+    SubscriberCredentials
+    AllowedPublisherClientIdsList
+    AllowedSubscriberClientIdsList
+    MaxConnectionsPerClient
+    MaxChannelsPerConnection
+    AckTimeOutInMillis //max time for subscriber to send an ack back for message
+    MaxRetryCountPerMessage
+    MaxPayloadSize
+    

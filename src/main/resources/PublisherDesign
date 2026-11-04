@@ -1,0 +1,49 @@
+Publisher
+    1. List<Message>
+    2. Channels
+    3. ClientId
+    4. ConnectionPool
+
+    StartSendingMessage(){}
+
+    Creates N connections to Queue
+    Authenticate
+    Start sending messages and remove from queue once we recieve ack back for message.
+    Reuse PublisherMessageParser from queue to encode the message and send it.
+    Reuse PublisherMessageParser from queue to decode the message.
+
+AppConfig
+    ClientId
+    QueueAddress
+    Credentials
+    ConnectionPoolCount
+    ChannelCountPerConnection
+    MaxPayloadSize
+    AckTimeOutInMillis //max time for queue send back ack, before resending the message
+
+Message
+    Id //unique id per message
+    createdAt // time at which this is created
+    topicId //not useful for now
+    ChannelId // useful for distinguishing channel with in connection
+    ttl // how long broker should keep the message
+    payload // actual message payload
+    static final byte FRAME_END = (byte) 0xCE;
+
+PublisherContentFrame
+1 byte frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+16 bytes -> messageId; uuid
+8 bytes -> created at; long
+2 bytes -> topic length; short
+10-200 bytes ->  topicId; utf-8 string
+1 byte -> channelId;
+4 bytes -> ttl; int
+4 bytes -> payload length; int
+N bytes -> payload
+1 byte -> end of frame marker
+
+PublisherContentFrameAck
+1 byte frame type
+16 bytes -> messageId; uuid
+1 byte -> channelId;
+1 byte -> end of frame marker

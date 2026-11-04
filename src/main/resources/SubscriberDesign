@@ -1,0 +1,44 @@
+Subscriber
+    1. List<Channels>
+    2. List<Connection>
+    3. ClientId
+    4. List<Message>
+
+    Create N Connections and Authenticate with Queue
+    Start receiving messages and send ack back for all messages.
+    Reuse SubscriberMessageParser to decode message from binary frame
+    Reuse SubscriberMessageParser to encode message ack.
+
+AppConfig
+    ClientId
+    QueueAddress
+    Credentials
+    ConnectionPoolCount
+    ChannelCountPerConnection
+    MaxPayloadSize
+
+
+Message
+    Id
+    createdAt
+    topicId
+    ChannelId
+    payload
+
+
+SubscriberContentFrame
+1 byte frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+16 bytes -> messageId; uuid
+8 bytes -> created at; long
+2 bytes -> topic length; short
+10-200 bytes ->  topicId; utf-8 string
+1 byte -> channelId;
+4 bytes -> payload length; int
+N bytes -> payload
+1 byte -> end of frame marker
+
+SubscriberContentFrameAck
+1 byte frame type
+16 bytes -> messageId; uuid
+1 byte -> channelId;
+1 byte -> end of frame marker
