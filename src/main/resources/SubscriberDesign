@@ -27,6 +27,7 @@ Message
 
 
 SubscriberContentFrame
+4 byte -> frame length
 1 byte frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
 16 bytes -> messageId; uuid
 8 bytes -> created at; long
@@ -38,6 +39,7 @@ N bytes -> payload
 1 byte -> end of frame marker
 
 SubscriberContentFrameAck
+4 byte -> frame length
 1 byte frame type
 16 bytes -> messageId; uuid
 1 byte -> channelId;

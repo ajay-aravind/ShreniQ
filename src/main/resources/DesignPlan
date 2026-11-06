@@ -137,6 +137,7 @@ A Message broker with single queue and atleast once guarantee.
     SubscriberContentAckFrame //channel level
 
 AuthFrame
+4 byte -> frame length
 1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
 2 bytes:  username length;
 N bytes: username; utf-8 string
@@ -148,8 +149,9 @@ N bytes: password; utf-8 string;
 1 byte eof marker
 
 AuthResponseFrame:
+4 byte -> frame length
 1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
-1 byte: Response code; {AuthSuccessful, AuthFailed, clientIdNotAllowed}
+1 byte: Response code; {AuthSuccessful, AuthFailed, clientIdNotAllowed, unexpectedFrame}
 1 byte eof marker
 
 

@@ -18,6 +18,7 @@ AppConfig
     Credentials
     ConnectionPoolCount
     ChannelCountPerConnection
+    ConnectionTimeout
     MaxPayloadSize
     AckTimeOutInMillis //max time for queue send back ack, before resending the message
 
@@ -28,9 +29,28 @@ Message
     ChannelId // useful for distinguishing channel with in connection
     ttl // how long broker should keep the message
     payload // actual message payload
-    static final byte FRAME_END = (byte) 0xCE;
+
+
+AuthFrame
+4 byte -> frame length
+1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+2 bytes:  username length;
+N bytes: username; utf-8 string
+2 bytes: password length;
+N bytes: password; utf-8 string;
+1 byte: publisher/subscriber
+16 bytes: clientId; uuid
+16 bytes: subId/pubId; uuid
+1 byte eof marker
+
+AuthResponseFrame:
+4 byte -> frame length
+1 byte : frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+1 byte: Response code; {AuthSuccessful, AuthFailed, clientIdNotAllowed}
+1 byte eof marker
 
 PublisherContentFrame
+4 byte -> frame length
 1 byte frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
 16 bytes -> messageId; uuid
 8 bytes -> created at; long
@@ -43,6 +63,7 @@ N bytes -> payload
 1 byte -> end of frame marker
 
 PublisherContentFrameAck
+4 byte -> frame length
 1 byte frame type
 16 bytes -> messageId; uuid
 1 byte -> channelId;
