@@ -3,12 +3,12 @@ package in.ajay.common;
 import java.io.IOException;
 
 public enum FrameType {
-    AUTHENTICATION(1),
-    AUTHENTICATION_RESPONSE(2),
-    PUBLISHER_MESSAGE(3),
-    PUBLISHER_MESSAGE_ACK(4),
-    SUBSCRIBER_MESSAGE(5),
-    SUBSCRIBER_MESSAGE_ACK(6),
+    AUTHENTICATION((byte) 1),
+    AUTHENTICATION_RESPONSE((byte) 2),
+    PUBLISHER_MESSAGE((byte) 3),
+    PUBLISHER_MESSAGE_ACK((byte) 4),
+    SUBSCRIBER_MESSAGE((byte) 5),
+    SUBSCRIBER_MESSAGE_ACK((byte) 6),
     ;
 
     private final byte code;

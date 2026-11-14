@@ -9,6 +9,8 @@ import java.util.Set;
 public final class AppConfig {
 
     private static final Properties PROPERTIES = new Properties();
+    public static final String QUEUE_USER_NAME = "QUEUE_USER_NAME";
+    public static final String QUEUE_PASSWORD = "QUEUE_PASSWORD";
 
     static {
         String appName = System.getenv("appname");

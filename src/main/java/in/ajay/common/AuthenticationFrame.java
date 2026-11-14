@@ -7,6 +7,7 @@ public class AuthenticationFrame {
     private String password;
     private ClientRole role;
     private UUID clientId;
+    //todo remove this, unused for now, because a channel will have multiple publishers or subscribers but authenticated only once
     private UUID publisherSubscriberId;
 
     public AuthenticationFrame(String username, String password, ClientRole role, UUID clientId, UUID publisherSubscriberId) {

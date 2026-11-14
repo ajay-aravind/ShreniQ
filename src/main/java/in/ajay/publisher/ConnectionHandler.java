@@ -9,12 +9,15 @@ import javax.net.ssl.SSLSocketFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
 
-public class ConnectionHandler {
+import static in.ajay.common.PublisherContentFrameParser.*;
+
+public class ConnectionHandler extends BaseConnectionHandler  implements  AutoCloseable, IMessageDispatcher{
 
     private String userName;
     private String password;
@@ -25,8 +28,11 @@ public class ConnectionHandler {
     private int maxChannelsPerConnection;
     private SSLSocket socket;
     private Logger logger;
+    private boolean isAuthenticated;
 
     private static final int MAX_FRAME_LENGTH = 1024 * 1024;
+    private static final int CONTENT_ACK_FRAME_LENGTH = 39;
+    private static final int MAX_CONTENT_FRAME_LENGTH = 1024*1024;
 
 
     public ConnectionHandler(String userName, String password, UUID clientId, URI queueAddress, long connectionTimeout, int maxChannelsPerConnection, UUID publisherId) {
@@ -60,24 +66,55 @@ public class ConnectionHandler {
 
             this.logger.debug("sent auth frame");
 
-            byte[] authResponseFrameBytes = this.readFrame(this.socket.getInputStream());
+            byte[] authResponseFrameBytes = this.readAuthAckFrame(this.socket.getInputStream());
             var authResponse = AuthenticationResponseFrameParser.decode(authResponseFrameBytes);
-            this.logger.debug("Authentication succeeded");
 
-            this.closeConnection();
+            if(authResponse.getResponseCode() == AuthFrameResponseCode.AUTH_SUCCESSFUL) {
+                this.isAuthenticated = true;
+                this.logger.debug("Authentication succeeded");
+            }else{
+                this.logger.error("Authentication failed with code: "+ authResponse.getResponseCode().toString());
+            }
+
         } catch (IOException e) {
+            logger.error("Error: "+e.getMessage());
             throw new RuntimeException(e);
         }
     }
 
-    public void closeConnection() throws IOException {
+    @Override
+    public synchronized void sendMessage(Message message, UUID publisherId, int channelId) throws IOException {
+        if(isAuthenticated)
+        {
+            this.logger.debug("sending message :"+ message);
+            PublisherContentFrame frame = new PublisherContentFrame(message.getId(), message.getCreatedAt(), message.getTopicId(), message.getChannelId(), publisherId, message.getTtl(), message.getPayload());
+            byte[] frameBytes = PublisherContentFrameParser.encode(frame);
+            OutputStream stream = this.socket.getOutputStream();
+            stream.write(frameBytes);
+            stream.flush();
+            this.logger.debug("sent message :"+ message);
+
+            byte[] contentAckBytes = readFrameContentAckFrame(this.socket.getInputStream());
+            this.logger.debug("read ack message bytes:"+ message.getId());
+            PublisherContentFrameAck ackFrame = PublisherContentFrameAckParser.decode(contentAckBytes);
+            this.logger.debug("ack for message id:"+ackFrame.getMessageId()+" received");
+        }
+        else
+        {
+            this.logger.warn("aborting dispatching the message. Connection is not authenticated");
+            throw new SecurityException("Connection is not authenticated");
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
         if(this.socket == null){
             this.logger.debug("connection doesn't exist");
         }
-        else if(this.socket != null && this.socket.isClosed()){
+        else if(this.socket.isClosed()){
             this.logger.debug("connection already closed");
         }
-        else if(this.socket != null && !this.socket.isClosed()){
+        else if(!this.socket.isClosed()){
             this.socket.close();
             this.logger.debug("closed connection");
         }
@@ -86,7 +123,7 @@ public class ConnectionHandler {
     /**
      * Reads exactly one frame from an InputStream.
      */
-    private byte[] readFrame(InputStream input)
+    private byte[] readAuthAckFrame(InputStream input)
             throws IOException {
 
         byte[] lengthBytes = new byte[4];
@@ -113,38 +150,27 @@ public class ConnectionHandler {
     }
 
     /**
-     * Helper to read the requested number of bytes.
+     * Read one acknowledgement frame from connection.
      */
-    private void readFully(
-            InputStream input,
-            byte[] buffer) throws IOException {
+    public byte[] readFrameContentAckFrame(InputStream input)
+            throws IOException {
 
-        readFully(input, buffer, 0, buffer.length);
-    }
+        int frameLength = this.readFrameLength(input);
 
-    private void readFully(
-            InputStream input,
-            byte[] buffer,
-            int offset,
-            int length) throws IOException {
+        if (frameLength != CONTENT_ACK_FRAME_LENGTH) {
+            throw new IOException(
+                    "Invalid PublisherContentFrameAck length: " +
+                            frameLength);
+        }
 
-        int totalRead = 0;
+        byte[] frameBytes =
+                this.readRemainingFrame(input, frameLength);
 
-        while (totalRead < length) {
-
-            int bytesRead = input.read(
-                    buffer,
-                    offset + totalRead,
-                    length - totalRead);
-
-            if (bytesRead == -1) {
-                throw new EOFException(
-                        "Unexpected end of stream");
-            }
-
-            totalRead += bytesRead;
+        try {
+            return frameBytes;
+        } catch (IllegalArgumentException e) {
+            throw new IOException(
+                    "Failed to decode PublisherContentFrameAck", e);
         }
     }
-
-
 }

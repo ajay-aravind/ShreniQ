@@ -2,7 +2,9 @@ Publisher
     1. List<Message>
     2. Channels
     3. ClientId
+publisherOrchestrator
     4. ConnectionPool
+    5. List<Publishers>
 
     StartSendingMessage(){}
 
@@ -38,7 +40,7 @@ AuthFrame
 N bytes: username; utf-8 string
 2 bytes: password length;
 N bytes: password; utf-8 string;
-1 byte: publisher/subscriber
+1 byte: publi sher/subscriber
 16 bytes: clientId; uuid
 16 bytes: subId/pubId; uuid
 1 byte eof marker
@@ -57,6 +59,7 @@ PublisherContentFrame
 2 bytes -> topic length; short
 10-200 bytes ->  topicId; utf-8 string
 1 byte -> channelId;
+16 bytes -> publisherId
 4 bytes -> ttl; int
 4 bytes -> payload length; int
 N bytes -> payload
@@ -66,5 +69,6 @@ PublisherContentFrameAck
 4 byte -> frame length
 1 byte frame type
 16 bytes -> messageId; uuid
+16 bytes -> publisherId
 1 byte -> channelId;
 1 byte -> end of frame marker

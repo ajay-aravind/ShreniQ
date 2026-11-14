@@ -14,7 +14,7 @@ import java.util.UUID;
 
 public class AuthenticationFrameParser {
 
-        private static final int MIN_FRAME_LENGTH = 43;
+        public static final int MIN_AUTH_FRAME_LENGTH = 43;
 
         // Replace with your protocol's assigned EOF marker.
         private static final byte EOF_MARKER = 0x7F;
@@ -40,7 +40,7 @@ public class AuthenticationFrameParser {
 
             int frameLength = buffer.getInt();
 
-            if (frameLength < MIN_FRAME_LENGTH) {
+            if (frameLength < MIN_AUTH_FRAME_LENGTH) {
                 throw new ProtocolException("Invalid frame length: " + frameLength);
             }
 
@@ -58,6 +58,9 @@ public class AuthenticationFrameParser {
             try {
                 frameType =
                         FrameType.fromCode(frameTypeCode);
+                if(frameType != FrameType.AUTHENTICATION){
+                    throw new IllegalArgumentException("unexpected frame type. Expected Authentication, found:"+frameType);
+                }
             } catch (IllegalArgumentException e) {
                 throw new ProtocolException(e.getMessage());
             }

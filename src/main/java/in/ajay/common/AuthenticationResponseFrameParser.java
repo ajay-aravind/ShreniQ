@@ -11,7 +11,7 @@ import java.nio.ByteOrder;
 
 public class AuthenticationResponseFrameParser {
 
-        private static final int FRAME_LENGTH = 3;
+        private static final int FRAME_LENGTH = 7;
 
         // Replace with your protocol's assigned EOF marker.
         private static final byte EOF_MARKER = 0x7F;
@@ -44,6 +44,8 @@ public class AuthenticationResponseFrameParser {
 
             ByteBuffer buffer = ByteBuffer.wrap(data);
             buffer.order(ByteOrder.BIG_ENDIAN);
+
+            int frameLength = buffer.getInt();
 
             byte frameTypeCode = buffer.get();
 
