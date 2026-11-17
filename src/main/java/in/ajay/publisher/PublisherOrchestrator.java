@@ -109,7 +109,7 @@ public class PublisherOrchestrator{
 
         List<Message> messageList = new ArrayList<>();
 
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 100; i++) {
             String s = "hello world"+i;
             byte b = 0;
             Message message = new Message(UUID.randomUUID(), Instant.now().toEpochMilli(), "in/ajay/shreni/general", b , 10*60*1000, s.getBytes(StandardCharsets.UTF_8));

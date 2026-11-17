@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -95,9 +96,8 @@ public class PublisherContentFrameParser {
             throw new IllegalArgumentException("Incomplete frame");
         }
 
-        ByteBuffer buffer = FrameIO.allocate(data.length);
-        buffer.put(data);
-        buffer.flip();
+        ByteBuffer buffer = ByteBuffer.wrap(data)
+                .order(ByteOrder.BIG_ENDIAN);
 
         int frameLength = buffer.getInt();
 
@@ -115,9 +115,9 @@ public class PublisherContentFrameParser {
                             Byte.toUnsignedInt(frameType));
         }
 
-        UUID messageId = FrameIO.readUUID(buffer);
-
         byte channelId = buffer.get();
+
+        UUID messageId = FrameIO.readUUID(buffer);
 
         long createdAt = buffer.getLong();
 

@@ -10,6 +10,7 @@ public interface IShreniStorage {
     void EnqueueQueueItem(QueueItem item);
     QueueItem DequeueItem();
     void AddIdToAckedMessages(UUID id);
+    boolean AckedMessagesListContainsId(UUID id);
     void RemoveIdFromAckedMessage(UUID id);
     void EnqueueQueueItemToInflightQueue(QueueItem item);
     QueueItem DequeueItemFromInFlightQueue();

@@ -23,14 +23,16 @@ public class ShreniQueue implements IShreniQueue{
     }
 
     @Override
-    public QueueItem DequeueMessage() {
-        return this.storage.DequeueItem();
+    public synchronized QueueItem DequeueMessage() {
+        var item = this.storage.DequeueItem();
+        this.storage.EnqueueQueueItemToInflightQueue(item);
+        return item;
     }
 
-    /// Network layer invokes this when the subscriber sends ack for a message. This method removes the message from queue
+    /// Network layer invokes this when the subscriber sends ack for a message. This method adds the message id to acked message set
     /// @param messageId
     @Override
-    public void AckMessage(int messageId) {
-
+    public void AckMessage(UUID messageId) {
+        this.storage.AddIdToAckedMessages(messageId);
     }
 }

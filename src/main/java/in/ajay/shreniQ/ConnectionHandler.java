@@ -1,6 +1,7 @@
 package in.ajay.shreniQ;
 
 import in.ajay.common.*;
+import in.ajay.shreniQ.core.IMessageDispatcher;
 import in.ajay.shreniQ.core.IShreniQueue;
 import in.ajay.shreniQ.core.ISubscriberRegistry;
 import in.ajay.shreniQ.core.QueueItem;
@@ -21,7 +22,7 @@ import java.util.UUID;
 import static in.ajay.common.AuthenticationFrameParser.MIN_AUTH_FRAME_LENGTH;
 import static in.ajay.common.PublisherContentFrameParser.*;
 
-public class ConnectionHandler extends BaseConnectionHandler {
+public class ConnectionHandler extends BaseConnectionHandler  implements IMessageDispatcher {
 
     IShreniQueue queue;
     ISubscriberRegistry subscriberRegistry;
@@ -68,6 +69,10 @@ public class ConnectionHandler extends BaseConnectionHandler {
         logger.info("Reading auth frame from client: " + clientConnection.getRemoteSocketAddress());
         try {
             byte[] frameBytes = this.readAuthFrame(this.clientConnection.getInputStream());
+            if(frameBytes == null){
+                this.logger.info("Expected authentication but client closed connection: "+this.clientConnection.getRemoteSocketAddress());
+                return;
+            }
             AuthenticationFrame authFrame = AuthenticationFrameParser.parse(frameBytes);
             Authenticator authenticator = new Authenticator(this.userName, this.password);
             boolean isAuthenticated = authenticator.authenticate(authFrame);
@@ -113,7 +118,7 @@ public class ConnectionHandler extends BaseConnectionHandler {
         }
         else if(!this.clientConnection.isClosed()){
             this.clientConnection.close();
-            this.logger.debug("closed connection");
+            this.logger.debug("closed connection" + this.clientConnection.getRemoteSocketAddress());
         }
     }
 
@@ -121,6 +126,10 @@ public class ConnectionHandler extends BaseConnectionHandler {
         while(true)
         {
             byte[] contentFrameBytes = this.readContentFrame(this.clientConnection.getInputStream());
+            if(contentFrameBytes==null){
+                logger.info("Client closed connection"+ this.clientConnection.getRemoteSocketAddress());
+                break;
+            }
             PublisherContentFrame contentFrame = PublisherContentFrameParser.decode(contentFrameBytes);
 
             Message message = new Message(contentFrame.getMessageId(), contentFrame.getCreatedAt(), contentFrame.getTopicId(), (byte)contentFrame.getChannelId(), contentFrame.getTtl(), contentFrame.getPayload());
@@ -144,7 +153,16 @@ public class ConnectionHandler extends BaseConnectionHandler {
     private byte[] readAuthFrame(InputStream input)
             throws IOException {
 
-        int frameLength = this.readFrameLength(input);
+        // Read the first byte separately to detect clean EOF.
+        int firstByte = input.read();
+
+        if (firstByte == -1) {
+            // No bytes of the next frame were received.
+            // The connection ended at a frame boundary.
+            return null;
+        }
+
+        int frameLength = this.readFrameLength(input, (byte)firstByte);
 
         if (frameLength < MIN_AUTH_FRAME_LENGTH) {
                 throw new ProtocolException("Invalid auth frame length: " + frameLength);
@@ -162,10 +180,48 @@ public class ConnectionHandler extends BaseConnectionHandler {
     /**
      * Read one complete frame from connection input stream.
      */
+    private byte[] readSubscriberContentAckFrame(InputStream input) throws IOException {
+
+        // Read the first byte separately to detect clean EOF.
+        int firstByte = input.read();
+
+        if (firstByte == -1) {
+            // No bytes of the next frame were received.
+            // The connection ended at a frame boundary.
+            return null;
+        }
+
+        int frameLength = this.readFrameLength(input, (byte)firstByte);
+
+        if (frameLength < SubscriberContentAckFrame.FRAME_LENGTH) {
+            throw new ProtocolException("Invalid subscriber content ack frame length: " + frameLength);
+        }
+
+        try {
+            byte[] frameBytes = this.readRemainingFrame(input, frameLength);
+            return frameBytes;
+        } catch (IOException e) {
+            throw new IOException(
+                    "Failed to read subscriber content ack frame", e);
+        }
+    }
+
+    /**
+     * Read one complete frame from connection input stream.
+     */
     private byte[] readContentFrame(InputStream input)
             throws IOException {
 
-        int frameLength = this.readFrameLength(input);
+        // Read the first byte separately to detect clean EOF.
+        int firstByte = input.read();
+
+        if (firstByte == -1) {
+            // No bytes of the next frame were received.
+            // The connection ended at a frame boundary.
+            return null;
+        }
+
+        int frameLength = this.readFrameLength(input, (byte)firstByte);
 
         int minimumLength = FIXED_FRAME_LENGTH + MIN_TOPIC_LENGTH;
 
@@ -188,6 +244,37 @@ public class ConnectionHandler extends BaseConnectionHandler {
         } catch (IllegalArgumentException e) {
             throw new IOException(
                     "Failed to decode PublisherContentFrame", e);
+        }
+    }
+
+    @Override
+    public void sendMessage(Message message, UUID subscriberId, int channelId) throws IOException {
+        if(isAuthenticated)
+        {
+            byte defaultChannelId = 0;
+            SubscriberContentFrame contentFrame = new SubscriberContentFrame(
+                    FrameType.SUBSCRIBER_MESSAGE.code(),
+                    message.getId(),
+                    message.getCreatedAt(),
+                    message.getTopicId(),
+                    defaultChannelId,
+                    subscriberId,
+                    message.getPayload());
+            byte[] contentFrameBytes = SubscriberContentFrame.encode(contentFrame);
+            var opStream = this.clientConnection.getOutputStream();
+            opStream.write(contentFrameBytes);
+            opStream.flush();
+            this.logger.debug("Sent message to subscriber. message: "+message);
+
+            byte[] ackFrameBytes = this.readSubscriberContentAckFrame(this.clientConnection.getInputStream());
+            SubscriberContentAckFrame ackFrame = SubscriberContentAckFrame.decode(ackFrameBytes);
+            this.logger.debug("ack message received for message: "+ackFrame.getMessageId());
+            this.queue.AckMessage(ackFrame.getMessageId());
+        }
+        else
+        {
+            this.logger.warn("aborting dispatching the message. Connection is not authenticated");
+            throw new SecurityException("Connection is not authenticated");
         }
     }
 }

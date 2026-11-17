@@ -8,5 +8,5 @@ import java.util.UUID;
 public interface IShreniQueue {
     void EnqueueMessage(QueueItem item);
     QueueItem DequeueMessage();
-    void AckMessage(int messageId);
+    void AckMessage(UUID messageId);
 }

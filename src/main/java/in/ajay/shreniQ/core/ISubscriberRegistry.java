@@ -7,4 +7,5 @@ public interface ISubscriberRegistry {
     void AddSubscriber(Subscriber sub);
     void RemoveSubscriber(UUID subId);
     List<Subscriber> getAllSubscribers();
+    Subscriber getNextSubscriber();
 }

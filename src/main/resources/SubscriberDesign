@@ -34,6 +34,21 @@ SubscriberContentFrame
 2 bytes -> topic length; short
 10-200 bytes ->  topicId; utf-8 string
 1 byte -> channelId;
+16 bytes -> subscriberId
+4 bytes -> payload length; int
+N bytes -> payload
+1 byte -> end of frame marker
+
+PublisherContentFrame
+4 byte -> frame length
+1 byte frame type -> Auth, AuthAck, PubContent, PubAck, SubContent, SubAck
+16 bytes -> messageId; uuid
+8 bytes -> created at; long
+2 bytes -> topic length; short
+10-200 bytes ->  topicId; utf-8 string
+1 byte -> channelId;
+16 bytes -> publisherId
+4 bytes -> ttl; int
 4 bytes -> payload length; int
 N bytes -> payload
 1 byte -> end of frame marker
@@ -42,5 +57,14 @@ SubscriberContentFrameAck
 4 byte -> frame length
 1 byte frame type
 16 bytes -> messageId; uuid
+16 bytes -> subscriberId
+1 byte -> channelId;
+1 byte -> end of frame marker
+
+PublisherContentFrameAck
+4 byte -> frame length
+1 byte frame type
+16 bytes -> messageId; uuid
+16 bytes -> publisherId
 1 byte -> channelId;
 1 byte -> end of frame marker

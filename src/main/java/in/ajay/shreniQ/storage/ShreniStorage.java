@@ -37,6 +37,11 @@ public class ShreniStorage implements IShreniStorage{
     }
 
     @Override
+    public boolean AckedMessagesListContainsId(UUID id) {
+        return this.ackedMessageIds.contains(id);
+    }
+
+    @Override
     public void RemoveIdFromAckedMessage(UUID id) {
         this.ackedMessageIds.remove(id);
     }

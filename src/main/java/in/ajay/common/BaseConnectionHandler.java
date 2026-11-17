@@ -16,6 +16,16 @@ public class BaseConnectionHandler {
                 .getInt();
     }
 
+    public int readFrameLength(InputStream input, byte firstByte) throws IOException {
+        byte[] lengthBytes = new byte[4];
+        lengthBytes[0] = firstByte;
+        readFully(input, lengthBytes, 1, 3);
+
+        return ByteBuffer.wrap(lengthBytes)
+                .order(ByteOrder.BIG_ENDIAN)
+                .getInt();
+    }
+
     public  byte[] readRemainingFrame(
             InputStream input,
             int frameLength) throws IOException {
