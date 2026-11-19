@@ -1,10 +1,7 @@
 package in.ajay.shreniQ;
 
 import in.ajay.common.*;
-import in.ajay.shreniQ.core.IMessageDispatcher;
-import in.ajay.shreniQ.core.IShreniQueue;
-import in.ajay.shreniQ.core.ISubscriberRegistry;
-import in.ajay.shreniQ.core.QueueItem;
+import in.ajay.shreniQ.core.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,19 +89,19 @@ public class ConnectionHandler extends BaseConnectionHandler  implements IMessag
                 if(this.role.equals(ClientRole.PUBLISHER)){
                     this.HandlePublisherConnection();
                 }else if(this.role.equals(ClientRole.SUBSCRIBER)){
-                    //handle subscriber connection
+                    Subscriber subscriber = new Subscriber(this.clientId, this, 0, authFrame.getPublisherSubscriberId());
+                    subscriberRegistry.AddSubscriber(subscriber);
                 }
-
             }else{
                 logger.debug("Authentication failed, closing connection: " + clientConnection.getRemoteSocketAddress());
+                this.close();
             }
         }catch(IOException ex){
             logger.error("Error while serving the client" + ex.getMessage());
+            this.close();
         }
         catch(Exception ex){
             logger.error("Error while serving the client" + ex.getMessage());
-        }
-        finally {
             this.close();
         }
     }
@@ -249,32 +246,33 @@ public class ConnectionHandler extends BaseConnectionHandler  implements IMessag
 
     @Override
     public void sendMessage(Message message, UUID subscriberId, int channelId) throws IOException {
-        if(isAuthenticated)
-        {
-            byte defaultChannelId = 0;
-            SubscriberContentFrame contentFrame = new SubscriberContentFrame(
-                    FrameType.SUBSCRIBER_MESSAGE.code(),
-                    message.getId(),
-                    message.getCreatedAt(),
-                    message.getTopicId(),
-                    defaultChannelId,
-                    subscriberId,
-                    message.getPayload());
-            byte[] contentFrameBytes = SubscriberContentFrame.encode(contentFrame);
-            var opStream = this.clientConnection.getOutputStream();
-            opStream.write(contentFrameBytes);
-            opStream.flush();
-            this.logger.debug("Sent message to subscriber. message: "+message);
+        if(!this.clientConnection.isClosed()) {
+            if (isAuthenticated) {
+                byte defaultChannelId = 0;
+                SubscriberContentFrame contentFrame = new SubscriberContentFrame(
+                        FrameType.SUBSCRIBER_MESSAGE.code(),
+                        message.getId(),
+                        message.getCreatedAt(),
+                        message.getTopicId(),
+                        defaultChannelId,
+                        subscriberId,
+                        message.getPayload());
+                byte[] contentFrameBytes = SubscriberContentFrame.encode(contentFrame);
+                var opStream = this.clientConnection.getOutputStream();
+                opStream.write(contentFrameBytes);
+                opStream.flush();
+                this.logger.debug("Sent message to subscriber. message: " + message);
 
-            byte[] ackFrameBytes = this.readSubscriberContentAckFrame(this.clientConnection.getInputStream());
-            SubscriberContentAckFrame ackFrame = SubscriberContentAckFrame.decode(ackFrameBytes);
-            this.logger.debug("ack message received for message: "+ackFrame.getMessageId());
-            this.queue.AckMessage(ackFrame.getMessageId());
-        }
-        else
-        {
-            this.logger.warn("aborting dispatching the message. Connection is not authenticated");
-            throw new SecurityException("Connection is not authenticated");
+                byte[] ackFrameBytes = this.readSubscriberContentAckFrame(this.clientConnection.getInputStream());
+                SubscriberContentAckFrame ackFrame = SubscriberContentAckFrame.decode(ackFrameBytes);
+                this.logger.debug("ack message received for message: " + ackFrame.getMessageId());
+                this.queue.AckMessage(ackFrame.getMessageId());
+            } else {
+                this.logger.warn("aborting dispatching the message. Connection is not authenticated");
+                throw new SecurityException("Connection is not authenticated");
+            }
+        }else{
+            throw new IOException("Connection closed");
         }
     }
 }

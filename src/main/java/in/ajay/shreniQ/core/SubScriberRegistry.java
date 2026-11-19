@@ -34,7 +34,10 @@ public class SubScriberRegistry implements ISubscriberRegistry{
 
     @Override
     public synchronized Subscriber getNextSubscriber() {
-        nextIndex = (nextIndex+1)%(subscribersList.size());
-        return (Subscriber) this.subscribersList.toArray()[nextIndex];
+        if(!subscribersList.isEmpty()) {
+            nextIndex = (nextIndex + 1) % (subscribersList.size());
+            return (Subscriber) this.subscribersList.toArray()[nextIndex];
+        }
+        return null;
     }
 }

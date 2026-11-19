@@ -9,10 +9,15 @@ public class QueueItem {
     Message message;
     int currentDeliveryAttempt;
     static int maxDeliveryAttempts = AppConfig.getInt("maxDeliveryAttempts");
+    private long lastDeliveredAt;
 
     public QueueItem(Message message, int currentDeliveryAttempt) {
         this.message = message;
         this.currentDeliveryAttempt = currentDeliveryAttempt;
+    }
+
+    public long getLastDeliveredAt() {
+        return lastDeliveredAt;
     }
 
     boolean isMessageStillValid(){

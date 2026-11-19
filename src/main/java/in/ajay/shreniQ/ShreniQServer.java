@@ -1,10 +1,7 @@
 package in.ajay.shreniQ;
 
 import in.ajay.common.AppConfig;
-import in.ajay.shreniQ.core.IShreniQueue;
-import in.ajay.shreniQ.core.ISubscriberRegistry;
-import in.ajay.shreniQ.core.ShreniQueue;
-import in.ajay.shreniQ.core.SubScriberRegistry;
+import in.ajay.shreniQ.core.*;
 import in.ajay.shreniQ.storage.IShreniStorage;
 import in.ajay.shreniQ.storage.ShreniStorage;
 import org.slf4j.Logger;
@@ -34,12 +31,16 @@ public class ShreniQServer {
             Executors.newVirtualThreadPerTaskExecutor();
     ISubscriberRegistry subscriberRegistry;
     IShreniStorage storage;
+    QueueDrainer queueDrainer;
+    MessageRedeliveryManager redeliveryManager;
 
     public ShreniQServer(){
         logger = LoggerFactory.getLogger(ShreniQServer.class);
         this.subscriberRegistry = new SubScriberRegistry();
         this.storage = new ShreniStorage();
         this.queue = new ShreniQueue(subscriberRegistry, storage);
+        this.queueDrainer = new QueueDrainer(queue, subscriberRegistry);
+        this.redeliveryManager = new MessageRedeliveryManager(queue, storage);
     }
 
     public void start() throws IOException, GeneralSecurityException {
@@ -67,6 +68,9 @@ public class ShreniQServer {
 
             logger.info("TLS cache server listening on "+AppConfig.get("host")+":"+AppConfig.getInt("port"));
             running = true;
+
+            this.queueDrainer.startDrain();
+            this.redeliveryManager.startMessageRedeliveryManager();
 
             try {
                 while (running) {
@@ -125,12 +129,10 @@ public class ShreniQServer {
             handler.handleClient();
         } catch (IOException e) {
             logger.error("Error while handling client: "+e.getMessage());
-        }finally {
             try {
                 handler.close();
-            } catch (IOException e) {
-                logger.error("Error while closing client connection :"+e.getMessage());
-                throw new RuntimeException(e);
+            } catch (IOException ex) {
+                logger.error("Error while closing the connection");
             }
         }
     }
@@ -141,6 +143,13 @@ public class ShreniQServer {
 
         if (serverSocket != null && !serverSocket.isClosed()) {
             serverSocket.close();
+        }
+
+        if(this.queueDrainer!=null) {
+            this.queueDrainer.stopDrain();
+        }
+        if(this.redeliveryManager != null){
+            this.redeliveryManager.stopMessageRedeliveryManager();
         }
 
         clientExecutor.close();
